@@ -1,0 +1,13 @@
+# TODO
+- [ ] Prepare the statistics of classes, images, prepare the train set and test set and validation set
+- [ ] Prepare the pipeline that is runnable
+- [ ] Train the baseline backbone models for the system and see what happens
+  - [ ] Train ResNet50 with Weighted Cross Entropy Loss
+- [ ] How can we take advantage of this data better?
+- [ ] How can we take advantage of this data better?
+  - [ ] Few-shot learning option?
+  - [ ] Self-supervised learing option?
+  - [ ] Unsupervised techniques?
+  - [ ] Augmentation in representation space?
+    - [ ] Can we do something novel in this? like a specific mixup using cell features? rotation prediction? etc.
+    - [ ] Pretext tasks
