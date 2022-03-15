@@ -50,7 +50,7 @@ class ClassifierWithTorchvisionBackbone(ModelBase):
 
     def inference_train(self, batch: Any) -> Dict[str, torch.Tensor]:
         model_outputs = dict()
-        model_outputs['logits'] = self.backbone(batch['image'])
+        model_outputs['logits'] = self.head(self.backbone(batch['image']))
         model_outputs['y_score'] = self.softmax(model_outputs['logits'])
         model_outputs['y_hat'] = torch.argmax(model_outputs['y_score'], dim=-1)
         model_outputs['label_index'] = batch['label_index']

@@ -35,10 +35,16 @@ def compute_all_classification_metrics(
         'number_of_correctly_classified': sklearn.metrics.accuracy_score(epoch_y, epoch_y_hat, normalize=False),
         'total_number_of_samples': epoch_y.shape[0]
     }
-    epoch_y_score = epoch_y_score[numpy.arange(epoch_y_score.shape[0]), epoch_y]
-    stats['roc_auc'] = {
-        x: sklearn.metrics.roc_auc_score(y_true=epoch_y, y_score=epoch_y_score, average=x)
-        for x in ['macro', 'micro', 'samples']}
+    epoch_y_score_probsonly = epoch_y_score[numpy.arange(epoch_y_score.shape[0]), epoch_y]
+
+    if len(labels) == 2:
+        stats['roc_auc'] = {
+            x: sklearn.metrics.roc_auc_score(y_true=epoch_y, y_score=epoch_y_score_probsonly, average=x)
+            for x in ['macro', 'micro', 'samples']}
+    else:
+        stats['roc_auc'] = dict()
+        for multi_class in ['ovo', 'ovr']:
+            stats['roc_auc'][multi_class] = {x: sklearn.metrics.roc_auc_score(y_true=numpy.eye(len(labels))[epoch_y], y_score=epoch_y_score, average=x, multi_class=multi_class) for x in ['macro', 'micro', 'samples']}
 
     stats['classification_report'] = sklearn.metrics.classification_report(
         y_true=epoch_y,
