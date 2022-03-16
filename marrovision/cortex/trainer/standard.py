@@ -1,4 +1,5 @@
 import os
+import pdb
 import sys
 from datetime import datetime
 from typing import Dict, Any
@@ -93,6 +94,9 @@ class StandardClassificationTrainer(TrainerBase, metaclass=abc.ABCMeta):
 
             if torch.isnan(loss):
                 logger.error("NaN loss encountered. Exiting.")
+                self.checkpointing_dump_after_error(epoch_index=epoch_index, batch=batch)
+                import pdb
+                pdb.set_trace()
                 sys.exit(1)
 
             # - backpropagation
@@ -172,6 +176,26 @@ class StandardClassificationTrainer(TrainerBase, metaclass=abc.ABCMeta):
         self.iter_scheduler = getattr(torch.optim.lr_scheduler, self.config['iter_scheduler']['type'])(
             optimizer=self.optimizer, **self.config['iter_scheduler']['args']) if 'iter_scheduler' in self.config else None
 
+    def checkpointing_dump_after_error(self, epoch_index: int, batch) -> None:
+        rank = 0
+        if not self.config['args']['dist_url'] == 'none':
+            rank = self.config['args']['rank']
+        repo = os.path.abspath(self.config['checkpointing']['repo'])
+        os.makedirs(repo, exist_ok=True)
+
+        iter_scheduler_state = None if self.iter_scheduler is None else self.iter_scheduler.state_dict()
+        epoch_scheduler_state = None if self.epoch_scheduler is None else self.epoch_scheduler.state_dict()
+        ckpt = {
+            'model': self.model.state_dict(),
+            'optimizer': self.optimizer.state_dict(),
+            'iter_scheduler': iter_scheduler_state,
+            'epoch_scheduler': epoch_scheduler_state,
+            'batch': batch
+        }
+
+        torch.save(self.buffer, os.path.join(repo, f'error_ckpt-buffer_epoch-{epoch_index}-{rank}.pth'))
+        torch.save(ckpt, os.path.join(repo, f'error_ckpt_epoch-{epoch_index}-{rank}.pth'))
+
     def checkpointing_dump(self, epoch_index: int):
         """
         checkpointing dump
@@ -204,10 +228,17 @@ class StandardClassificationTrainer(TrainerBase, metaclass=abc.ABCMeta):
 
     def checkpointing_resume(self):
         repo = os.path.abspath(self.config['checkpointing']['repo'])
-        if os.path.isfile(os.path.join(repo, 'ckpt_latest.pt')):
-            assert os.path.isfile(os.path.join(repo, 'stats_latest.pt')), 'stats_latest.pt not found'
-            ckpt = torch.load(os.path.join(repo, 'ckpt_latest.pt'), map_location='cpu')
-            self.model.load_state_dict(ckpt['model'])
+        logger.info(f"~> Resuming from checkpointing {repo}")
+        if os.path.isfile(os.path.join(repo, 'ckpt_latest.pth')):
+            assert os.path.isfile(os.path.join(repo, 'stats_latest.pth')), 'stats_latest.pt not found'
+            ckpt = torch.load(os.path.join(repo, 'ckpt_latest.pth'), map_location='cpu')
+            try:
+                self.model.load_state_dict(ckpt['model'])
+                logger.info("network weights are loaded from checkpoint.")
+            except Exception as e:
+                logger.warning(f'Model loading failed in primary step, {e}')
+                import pdb
+                pdb.set_trace()
             self.optimizer.load_state_dict(ckpt['optimizer'])
             if ckpt['iter_scheduler'] is not None:
                 assert self.iter_scheduler is not None, 'iter_scheduler not found'
@@ -216,7 +247,7 @@ class StandardClassificationTrainer(TrainerBase, metaclass=abc.ABCMeta):
                 assert self.epoch_scheduler is not None, 'epoch_scheduler not found'
                 self.epoch_scheduler.load_state_dict(ckpt['epoch_scheduler'])
 
-            self.buffer['history'] = torch.load(os.path.join(repo, 'stats_latest.pt'), map_location='cpu')
+            self.buffer['history'] = torch.load(os.path.join(repo, 'stats_latest.pth'), map_location='cpu')
             self.start_epoch = self.buffer['history']['train'][-1]['epoch_index'] + 1
 
     @overrides

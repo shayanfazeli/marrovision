@@ -7,6 +7,7 @@ import logging
 import marrovision.cortex.data as data_lib
 import marrovision.cortex.model as model_lib
 import marrovision.cortex.trainer as trainer_lib
+from marrovision.utilities.checkpointing.get_start_epoch import get_start_epoch
 from marrovision.utilities.device import get_device
 from marrovision.utilities.io.files_and_folders import clean_folder
 from marrovision.utilities.randomization.seed import fix_random_seeds
@@ -29,6 +30,13 @@ def main(args: argparse.Namespace) -> None:
     # - fixing random seed
     fix_random_seeds(seed=args.seed)
 
+    # - getting the configuration
+    config = dict(Config.fromfile(args.config))
+    config['trainer']['config'].update({'args': vars(args)})
+    if args.clean:
+        clean_folder(folder_path=config['trainer']['config']['checkpointing']['repo'])
+
+    # - distributed
     if not args.dist_url == 'none':
         args.rank = int(os.environ["RANK"])
         args.world_size = int(os.environ["WORLD_SIZE"])
@@ -41,18 +49,18 @@ def main(args: argparse.Namespace) -> None:
             world_size=args.world_size,
             rank=args.rank,
         )
+        config['data']['args']['distributed'] = True
+    else:
+        config['data']['args']['distributed'] = False
 
     # - getting device
     device = get_device(device=args.device)
 
-    # - getting the configuration
-    config = dict(Config.fromfile(args.config))
-    config['trainer']['config'].update({'args': vars(args)})
-    if args.clean:
-        clean_folder(folder_path=config['trainer']['config']['checkpointing']['repo'])
-
     # - getting the dataloaders
     logger.info("~> preparing the dataloaders...\n")
+
+    config['data']['args']['start_epoch'] = get_start_epoch(config)
+    config['data']['args']['seed'] = args.seed
     dataloaders = getattr(
         data_lib,
         config['data']['interface']
