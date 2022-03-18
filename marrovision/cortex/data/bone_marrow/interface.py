@@ -1,3 +1,4 @@
+from typing import Dict, Any
 import os
 from pathlib import Path
 import numpy as np
@@ -9,11 +10,16 @@ import torch.utils.data.dataloader
 
 from marrovision.contrib.torchvision.transforms import RandomMixup, RandomCutmix
 from .dataset import BoneMarrowDataset
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, KFold
 
 import marrovision.cortex.data.bone_marrow.transformations
 from .sampler import BoneMarrowBalancedSampler, BoneMarrowBalancedDistributedSampler
 from .utilities import get_image_paths_per_label
+
+import logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 def bone_marrow_cell_classification(
@@ -28,12 +34,27 @@ def bone_marrow_cell_classification(
         seed: int = 0,
         mixup_alpha: float = 0.0,
         cutmix_alpha: float = 0.0,
-        save_split_to_filepath: str = None
+        save_split_to_filepath: str = None,
+        fold_index: int = None,
+        kfold_config: Dict[str, Any] = None
 ):
     labels = [e for e in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, e)) and not e.startswith('.')]
     image_filepaths_per_label = {
         x: get_image_paths_per_label(data_dir, x) for x in labels
     }
+
+    if fold_index is None:
+        filepaths_per_label = dict(train=dict(), test=dict())
+        for label in image_filepaths_per_label:
+            filepaths_per_label['train'][label], filepaths_per_label['test'][label] = train_test_split(image_filepaths_per_label[label], test_size=test_ratio)
+    else:
+        assert kfold_config is not None
+        filepaths_per_label = dict(train=dict(), test=dict())
+        for label in image_filepaths_per_label:
+            kfold = KFold(**kfold_config)
+            train_inds, test_inds = list(kfold.split(image_filepaths_per_label[label]))[fold_index]
+            filepaths_per_label['train'][label] = [image_filepaths_per_label[label][i] for i in train_inds]
+            filepaths_per_label['test'][label] = [image_filepaths_per_label[label][i] for i in test_inds]
 
     if mixup_alpha == 0.0 and cutmix_alpha == 0.0:
         collate_fn = torch.utils.data.dataloader.default_collate
@@ -52,10 +73,6 @@ def bone_marrow_cell_classification(
                 return collated_batch
         else:
             collate_fn = torch.utils.data.dataloader.default_collate
-
-    filepaths_per_label = dict(train=dict(), test=dict())
-    for label in image_filepaths_per_label:
-        filepaths_per_label['train'][label], filepaths_per_label['test'][label] = train_test_split(image_filepaths_per_label[label], test_size=test_ratio)
 
     if save_split_to_filepath is not None:
         with gzip.open(save_split_to_filepath, 'wb') as f:

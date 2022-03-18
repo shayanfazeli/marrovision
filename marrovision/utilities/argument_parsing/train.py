@@ -23,4 +23,6 @@ def train_parser() -> argparse.ArgumentParser:
                                     it is set automatically and should not be passed as argument""")
     parser.add_argument("--local_rank", default=0, type=int,
                         help="this argument is not used and should be ignored")
+    parser.add_argument("--fold_index", default=None, type=int,
+                        help="the fold index, if provided the config MUST be a k-fold dataset config")
     return parser
