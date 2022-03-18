@@ -1,2 +1,2 @@
 from .standard import StandardClassificationTrainer
-
+from .standard_semi import StandardSemiSupervisedClassificationTrainer

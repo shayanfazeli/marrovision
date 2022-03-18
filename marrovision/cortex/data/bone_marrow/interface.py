@@ -1,8 +1,13 @@
 import os
 from pathlib import Path
 import numpy as np
+import gzip
+import pickle
 import torch
+import torchvision
 import torch.utils.data.dataloader
+
+from marrovision.contrib.torchvision.transforms import RandomMixup, RandomCutmix
 from .dataset import BoneMarrowDataset
 from sklearn.model_selection import train_test_split
 
@@ -20,16 +25,41 @@ def bone_marrow_cell_classification(
         num_workers: int=None,
         distributed: bool = False,
         start_epoch: int = 0,
-        seed: int = 0
+        seed: int = 0,
+        mixup_alpha: float = 0.0,
+        cutmix_alpha: float = 0.0,
+        save_split_to_filepath: str = None
 ):
     labels = [e for e in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, e)) and not e.startswith('.')]
     image_filepaths_per_label = {
         x: get_image_paths_per_label(data_dir, x) for x in labels
     }
 
+    if mixup_alpha == 0.0 and cutmix_alpha == 0.0:
+        collate_fn = torch.utils.data.dataloader.default_collate
+    else:
+        mixup_transforms = []
+        if mixup_alpha > 0.0:
+            mixup_transforms.append(RandomMixup(21, p=1.0, alpha=mixup_alpha))
+        if cutmix_alpha > 0.0:
+            mixup_transforms.append(RandomCutmix(21, p=1.0, alpha=cutmix_alpha))
+        if mixup_transforms:
+            mixupcutmix = torchvision.transforms.RandomChoice(mixup_transforms)
+            def collate_fn(batch):
+                batch = torch.utils.data.dataloader.default_collate(batch)
+                collated_batch = dict()
+                collated_batch['image'], collated_batch['gt_score'] = mixupcutmix(batch['image'], batch['label_index'])
+                return collated_batch
+        else:
+            collate_fn = torch.utils.data.dataloader.default_collate
+
     filepaths_per_label = dict(train=dict(), test=dict())
     for label in image_filepaths_per_label:
         filepaths_per_label['train'][label], filepaths_per_label['test'][label] = train_test_split(image_filepaths_per_label[label], test_size=test_ratio)
+
+    if save_split_to_filepath is not None:
+        with gzip.open(save_split_to_filepath, 'wb') as f:
+            pickle.dump(filepaths_per_label, f)
 
     datasets = {x: BoneMarrowDataset(
         filepaths_per_label[x],
@@ -46,11 +76,7 @@ def bone_marrow_cell_classification(
                 dataset=datasets['train'],
                 number_of_samples_per_class=balanced_sample_count_per_category)
     else:
-        sampler_per_mode['test'] = torch.utils.data.distributed.DistributedSampler(
-            datasets['test'],
-            shuffle=True,
-            seed=0
-        )
+        sampler_per_mode['test'] = None
         if balanced_sample_count_per_category is None:
             sampler_per_mode['train'] = torch.utils.data.distributed.DistributedSampler(
                 datasets['train'],
@@ -68,6 +94,7 @@ def bone_marrow_cell_classification(
         datasets[x],
         sampler=sampler_per_mode[x],
         batch_size=batch_size,
+        collate_fn=collate_fn if x == 'train' else torch.utils.data.dataloader.default_collate,
         num_workers=num_workers) for x in ['train', 'test']}
 
     assert dataloaders['test'].dataset.label_layout == dataloaders['train'].dataset.label_layout

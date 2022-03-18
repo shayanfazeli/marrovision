@@ -64,16 +64,11 @@ class StandardClassificationTrainer(TrainerBase, metaclass=abc.ABCMeta):
         self.epoch_losses = []
 
     def distributed_initializations(self):
+        self.distributed_rank = None
         if not self.config['args']['dist_url'] == 'none':
-
+            self.distributed_rank = self.config['args']['rank']
             self.optimizer = LARC(optimizer=self.optimizer, trust_coefficient=0.001, clip=False)
             logger.info("\t~> LARC optimizer initialization done.")
-            # torch.distributed.init_process_group(
-            #     backend="nccl",
-            #     init_method=self.config['args']['dist_url'],
-            #     world_size=self.config['args']['world_size'],
-            #     rank=self.config['args']['rank']
-            # )
             self.model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
             logger.info("\t~> model batch norm synchronization is done.")
 
@@ -135,14 +130,15 @@ class StandardClassificationTrainer(TrainerBase, metaclass=abc.ABCMeta):
                 'max': numpy.max(loss_values_throughout_epoch),
             }
 
-        logger.info(f"""
-        Performance ~> Epoch {epoch_index} - [{mode}]
-        ===========================
-        
-        {stats}
-        
-        ===========================
-        """)
+        if (self.distributed_rank is None) or (self.distributed_rank == 0):
+            logger.info(f"""
+            Performance ~> Epoch {epoch_index} - [{mode}]
+            ===========================
+            
+            {stats}
+            
+            ===========================
+            """)
 
         stats.update({'mode': mode, 'epoch_index': epoch_index})
         self.buffer['history'][mode].append(stats)
@@ -200,10 +196,7 @@ class StandardClassificationTrainer(TrainerBase, metaclass=abc.ABCMeta):
         """
         checkpointing dump
         """
-
-        if not self.config['args']['dist_url'] == 'none':
-            if self.config['args']['rank'] != 0:
-                return
+        the_rank = self.distributed_rank
         repo = os.path.abspath(self.config['checkpointing']['repo'])
         os.makedirs(repo, exist_ok=True)
         if 'checkpointing_epoch_interval' in self.config['checkpointing']:
@@ -221,10 +214,19 @@ class StandardClassificationTrainer(TrainerBase, metaclass=abc.ABCMeta):
         }
 
         if interval is not None and epoch_index % interval == 0:
-            torch.save(self.buffer['history'], os.path.join(repo, f'stats_epoch-{epoch_index}.pth'))
-            torch.save(ckpt, os.path.join(repo, f'ckpt_epoch-{epoch_index}.pth'))
-        torch.save(self.buffer['history'], os.path.join(repo, f'stats_latest.pth'))
-        torch.save(ckpt, os.path.join(repo, f'ckpt_latest.pth'))
+            if the_rank is None:
+                torch.save(self.buffer['history'], os.path.join(repo, f'stats_epoch-{epoch_index}.pth'))
+            else:
+                if the_rank == 0:
+                    torch.save(ckpt, os.path.join(repo, f'ckpt_epoch-{epoch_index}.pth'))
+                torch.save(self.buffer['history'], os.path.join(repo, f'stats_epoch-{epoch_index}-rank{the_rank}.pth'))
+
+        if the_rank is None:
+            torch.save(self.buffer['history'], os.path.join(repo, f'stats_latest.pth'))
+        else:
+            if the_rank == 0:
+                torch.save(ckpt, os.path.join(repo, f'ckpt_latest.pth'))
+            torch.save(self.buffer['history'], os.path.join(repo, f'stats_latest-rank{the_rank}.pth'))
 
     def checkpointing_resume(self):
         repo = os.path.abspath(self.config['checkpointing']['repo'])

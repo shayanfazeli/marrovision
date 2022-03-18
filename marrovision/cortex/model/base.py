@@ -142,6 +142,13 @@ class ModelBase(torch.nn.Module, metaclass=abc.ABCMeta):
             loss_outputs=loss_outputs
         )
 
+    def eval_loss(self, batch: Dict[str, Any], model_outputs: Dict[str, Any]) -> Dict[str, torch.Tensor]:
+        """
+        evaluation loss (no gradient, merely informative)
+        """
+        with torch.no_grad():
+            return self.loss(batch, model_outputs)
+
     def forward_eval(self, batch: Dict[str, List[Dict[str, pandas.DataFrame]]]) -> Dict[str, Dict[str, torch.Tensor]]:
         """
         The evaluation forward process
@@ -163,7 +170,7 @@ class ModelBase(torch.nn.Module, metaclass=abc.ABCMeta):
             model_outputs = self.inference_eval(batch)
 
             # - computing losses
-            loss_outputs = self.loss(batch, model_outputs)
+            loss_outputs = self.eval_loss(batch, model_outputs)
 
             # - returning the information bundle
             return dict(

@@ -52,6 +52,7 @@ def main(args: argparse.Namespace) -> None:
         config['data']['args']['distributed'] = True
     else:
         config['data']['args']['distributed'] = False
+    config['data']['args']['save_split_to_filepath'] = os.path.join(config['trainer']['config']['checkpointing']['repo'], 'train_test_split.pkl.gz')
 
     # - getting device
     device = get_device(device=args.device)
@@ -61,15 +62,16 @@ def main(args: argparse.Namespace) -> None:
 
     config['data']['args']['start_epoch'] = get_start_epoch(config)
     config['data']['args']['seed'] = args.seed
-    dataloaders = getattr(
-        data_lib,
-        config['data']['interface']
-    )(**config['data']['args'])
 
     # - dumping config and args
     checkpointing_repo = config['trainer']['config']['checkpointing']['repo']
     os.makedirs(checkpointing_repo, exist_ok=True)
     torch.save(config, os.path.join(checkpointing_repo, f'config_and_args.pt'))
+
+    dataloaders = getattr(
+        data_lib,
+        config['data']['interface']
+    )(**config['data']['args'])
 
     # - preparing the model
     logger.info(f"~> preparing the model (model type: {config['model']['type']})...\n")

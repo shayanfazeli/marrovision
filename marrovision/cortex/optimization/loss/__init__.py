@@ -1,1 +1,2 @@
-from torch.nn import CrossEntropyLoss, NLLLoss
+from torch.nn import CrossEntropyLoss, NLLLoss, BCELoss, BCEWithLogitsLoss
+

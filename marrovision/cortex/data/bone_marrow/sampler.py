@@ -20,6 +20,7 @@ class BoneMarrowBalancedSampler(torch.utils.data.sampler.Sampler):
         self.label_indices = numpy.array(dataset.label_indices)
         self.label_layout = dataset.label_layout
         self.seed = seed
+        self.epoch = 0
 
     def __iter__(self) -> Iterable[int]:
         indices = []
