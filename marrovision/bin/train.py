@@ -33,14 +33,17 @@ def main(args: argparse.Namespace) -> None:
     # - getting the configuration
     config = dict(Config.fromfile(args.config))
     config['trainer']['config'].update({'args': vars(args)})
+
+    if args.fold_index is not None:
+        logger.info(f"experiment is k-fold (fold-index = {args.fold_index})")
+        assert config['data']['args']['kfold_config'] is not None
+        config['data']['args']['kfold_config']['shuffle'] = True
+        config['data']['args']['kfold_config']['random_state'] = args.seed
+        config['data']['args']['fold_index'] = args.fold_index
+        config['trainer']['config']['checkpointing']['repo'] = os.path.join(config['trainer']['config']['checkpointing']['repo'], f'fold_{args.fold_index}')
+
     if args.clean:
         clean_folder(folder_path=config['trainer']['config']['checkpointing']['repo'])
-    if args.fold_index:
-        assert config['data']['kfold_config'] is not None
-        config['data']['kfold_config']['shuffle'] = True
-        config['data']['kfold_config']['random_state'] = args.seed
-        config['data']['fold_index'] = args.fold_index
-        config['trainer']['config']['checkpointing']['repo'] = os.path.join(config['trainer']['config']['checkpointing']['repo'] , f'fold_{args.fold_index}')
 
     # - distributed
     if not args.dist_url == 'none':
