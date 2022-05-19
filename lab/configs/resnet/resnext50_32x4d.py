@@ -1,6 +1,6 @@
 __code_root = '/home/shayan/phoenix/marrovision/'
 __warehouse_root = '/home/shayan/warehouse/marrovision/'
-__logdir = __warehouse_root + 'bone_marrow_cell_classification/resnext50_32x4d'
+__logdir = __warehouse_root + 'bone_marrow_cell_classification/resnext50_32x4d_traintestsplit'
 __data_dir = '/data/marrovision/BM_cytomorphology_data'
 
 
@@ -12,7 +12,7 @@ data = dict(
         batch_size=64,
         num_workers=10,
         train_transformation='train_transform_1',
-        balanced_sample_count_per_category=10000
+        balanced_sample_count_per_category=10000,
     )
 )
 
@@ -39,6 +39,7 @@ model = dict(
             dict(
                 name='ce_loss',
                 type='CrossEntropyLoss',
+                target_variable='label_index',
                 weight=1.0,
                 args=dict()
             )
