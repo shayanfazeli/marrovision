@@ -4,6 +4,10 @@ import argparse
 def train_parser() -> argparse.ArgumentParser:
     """
     Returns the argument parser for the train command.
+
+    Returns
+    -----------
+    `argparse.ArgumentParser`: The argument parser for `marrovision`'s training script.
     """
     parser = argparse.ArgumentParser("train")
     parser.add_argument(

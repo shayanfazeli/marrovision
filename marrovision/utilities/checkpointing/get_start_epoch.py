@@ -1,3 +1,4 @@
+from typing import Dict, Any
 import os
 import torch
 import logging
@@ -7,7 +8,17 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-def get_start_epoch(config):
+def get_start_epoch(config: Dict[str, Any])  -> int:
+    """
+    Parameters
+    ----------
+    config: `Dict[str, Any]`, required
+        The parsed configuration's information bundle.
+
+    Returns
+    -------
+    `int`: The starting epoch (the latest epoch that has not been processed yet).
+    """
     config = config['trainer']['config']
 
     repo = os.path.abspath(config['checkpointing']['repo'])

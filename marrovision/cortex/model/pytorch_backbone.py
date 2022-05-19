@@ -22,6 +22,10 @@ class ClassifierWithTorchvisionBackbone(ModelBase):
         super(ClassifierWithTorchvisionBackbone, self).__init__(*args, **kwargs)
 
     def building_blocks(self) -> None:
+        """
+        The :meth:`building_blocks` builds the core modules from torchvision.
+        :return:
+        """
         self.softmax = torch.nn.Softmax(dim=-1)
         model_name = self.config['backbone']['type']
         model_args = self.config['backbone']['args']

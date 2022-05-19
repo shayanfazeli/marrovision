@@ -177,10 +177,10 @@ def get_results_comparison_table(stats):
     for c in [f'baseline_{x}' for x in ['precision_strict', 'recall_strict', 'f1_strict']]:
         meta_df[c] = meta_df[c].apply(lambda x: x * 0.01)
 
-    for c in ['model_precision', 'model_recall', 'model_f1', 'train_support']:
+    for c in ['model_precision', 'model_recall', 'model_f1', 'test_support']:
         meta_df[c] = meta_df.apply(lambda x: get_category_info(x['class_abbreviation'], stats)[c], axis=1)
 
-    meta_df['model_is_better'] = meta_df.apply(lambda x: x['model_f1'] - x['baseline_f1_strict'], axis=1)
+    meta_df['f1_difference_from_mateketal'] = meta_df.apply(lambda x: x['model_f1'] - x['baseline_f1_strict'], axis=1)
 
     return meta_df
 
@@ -191,4 +191,4 @@ def get_category_info(class_abbreviation, stats):
         'model_precision': stats[-1]['prf'][None][0][class_index],
         'model_recall': stats[-1]['prf'][None][1][class_index],
         'model_f1': stats[-1]['prf'][None][2][class_index],
-        'train_support': stats[-1]['prf'][None][3][class_index],}
+        'test_support': stats[-1]['prf'][None][3][class_index],}

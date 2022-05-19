@@ -26,6 +26,9 @@ logger.setLevel(logging.DEBUG)
 
 
 class StandardClassificationTrainer(TrainerBase, metaclass=abc.ABCMeta):
+    """
+    The :cls:`StandardClassificationTrainer` class of trainers.
+    """
     def __init__(self, *args, **kwargs):
         super(StandardClassificationTrainer, self).__init__(*args, **kwargs)
         self.distributed_initializations()
